@@ -460,17 +460,6 @@ class DBQuery {
 		if ( $where )
 			$sql[] = "WHERE " . implode( ' ', $where );
 
-		if ( isset( $query['union'] ) ) { //support old union request
-			foreach ( $query['union'] as $unionQuery ) {
-
-				$sql[] = "UNION ALL";
-
-				$Query = new DBQuery( $unionQuery['table'] );
-
-				$sql[] = $Query->get_sql( $unionQuery );
-			}
-		}
-
 		if ( isset( $query['groupby'] ) && $query['groupby'] )
 			$sql[] = "GROUP BY " . $query['groupby'];
 
@@ -512,17 +501,13 @@ class DBQuery {
 		return $sql;
 	}
 
-	function get_data( $method = 'get_results', $use_cache = false, $return_as = false, $get_found_rows = false ) {
+	function get_data( $method = 'get_results', $use_cache = false, $return_as = false ) {
 		global $wpdb;
 
 		if ( $this->return_as )
 			$return_as = $this->return_as;
 
 		$query = $this->get_query();
-
-		if($get_found_rows){
-			$query['get_found_rows'] = true;
-		}
 
 		if ( $use_cache || $this->cache ) {
 			$cachekey	 = md5( json_encode( $query ) );
@@ -538,8 +523,6 @@ class DBQuery {
 		$data = $this->maybe_unserialize( $data );
 
 		$data = wp_unslash( $data );
-
-		//$this->found_rows = $wpdb->query( "SELECT FOUND_ROWS() AS count" );
 
 		if ( $use_cache )
 			wp_cache_add( $cachekey, $data );
@@ -581,8 +564,8 @@ class DBQuery {
 		return $this->get_data( 'get_var', $cache );
 	}
 
-	function get_results( $cache = false, $return_as = false, $get_found_rows = false ) {
-		return $this->get_data( 'get_results', $cache, $return_as, $get_found_rows );
+	function get_results( $cache = false, $return_as = false ) {
+		return $this->get_data( 'get_results', $cache, $return_as );
 	}
 
 	function get_row( $cache = false ) {
