@@ -2,7 +2,7 @@
 
 ## Description
 
-It`s a helpfull class for a building simple and coplex requests to standart and custom tables of database.
+It's a helpfull class for a building simple and coplex requests to standart and custom tables of database.
 
 ## Examples
 
