@@ -1,42 +1,58 @@
 <?php
 
 //conditionals of search
-$post_ids    = [ 10, 22, 35 ];
-$post_status = [ 'publish' ];
-$post_types  = [ 'post' ];
+$searchData = [
+	'ID__in' => [ 10, 22, 35 ],
+	'post_status__in' => [ 'publish' ],
+	'post_type__in' => [ 'post' ],
+	'rating__from' => 4,
+	'username' => 'vlad',
+	'page' => 2,
+	'number' => 10
+];
 
-//$pagination
-$page  = 2;
-$number  = 10;
-$offset = ( $page - 1 ) * $number;
+$searchRules = [
+	'ID__in' => function ( $query, $value ) {
+		return $query->where( [ 'ID__in' => array_map('intval', $value ) ] );
+	},
+	'post_status__in' => function ( $query, $value ) {
+		return $query->where( [ 'post_status__in' => array_map('strval', $value ) ] );
+	},
+	'post_type__in' => function ( $query, $value ) {
+		return $query->where( [ 'post_type__in' => array_map('strval', $value ) ] );
+	},
+	'rating__from' => function ( $query, $value ) {
+		return $query->join(
+			['ID', 'post_id'], DBQuery::tbl(new PostMetaQuery())->where([
+				'meta_key' => 'rating',
+				'meta_value__from' => intval($value)
+			])
+		);
+	},
+	'username' => function ( $query, $value ) {
+		return $query->join([
+			['post_author', 'ID'], DBQuery::tbl(new UsersQuery())->where(['display_name__like' => strval($value)])
+		]);
+	},
+];
 
-$postsQuery = new Posts_Query();
+$query = new PostsQuery();
 
-if($post_ids){
-	$postsQuery->where([
-		'ID__in' => $post_ids
-	]);
+foreach ( $searchRules as $key => $rule ) {
+	if ( isset( $searchData[ $key ] ) && $searchData[ $key ] ) {
+		$this->filters[ $key ] = $searchData[ $key ];
+		$query                 = $rule( $query, $searchData[ $key ] );
+	}
 }
-
-if($post_status){
-	$postsQuery->where([
-		'post_status__in' => $post_status
-	]);
-}
-
-if($post_types){
-	$postsQuery->where([
-		'post_type__in' => $post_types
-	]);
-}
-
-$postsQuery->limit($number, $offset);
 
 //count results
-$cnt_results = $postsQuery->get_count();
+$total = $query->get_count();
+
+//$pagination
+if($searchData['page']){
+	$offset = ( $searchData['page'] - 1 ) * $searchData['number'];
+	$query->limit($searchData['number'], $offset);
+}
 
 //get results
-$results = $postsQuery->get_results();
-
-
-
+$results = $query->get_results();

@@ -1,7 +1,41 @@
 <?php
+/**
+ Methods changing the query
+ * select
+ * select_string
+ * where
+ * where_string
+ * join
+ * number
+ * offset
+ * limit
+ * groupby
+ * order
+ * orderby
+ * orderby_case
+ * orderby_as_number
+ * orderby_string
+ * date
+ * parse
+
+ Methods getting results
+ * get_var
+ * get_col
+ * get_row
+ * get_results
+ * get_count
+ * get_sum
+ * get_max
+ * get_min
+
+ Methods getting data
+ * get_query
+ * get_sql
+
+ **/
 
 //get col values
-$post_ids = DBQuery::tbl(new Posts_Query())->select([
+$post_ids = DBQuery::tbl(new PostsQuery())->select([
 		'ID'
 	])->where([
 		'post_type' => 'post',
@@ -13,7 +47,7 @@ $post_ids = DBQuery::tbl(new Posts_Query())->select([
 
 
 //get results with cache
-$results = DBQuery::tbl(new Posts_Query())->select([
+$results = DBQuery::tbl(new PostsQuery())->select([
 		'ID', 'post_content', 'post_author'
 	])->where([
 		'post_type__in' => ['post', 'page'],
@@ -25,11 +59,11 @@ $results = DBQuery::tbl(new Posts_Query())->select([
 
 
 //join
-$user_ids = DBQuery::tbl(new Users_Query())->select([
+$user_ids = DBQuery::tbl(new UsersQuery())->select([
 		'ID'
 	])->join(
 		['ID', 'post_author'],
-		DBQuery::tbl(new Posts_Query())->where([
+		DBQuery::tbl(new PostsQuery())->where([
 			'post_type' => 'post',
 			'post_status' => 'publish'
 		])
@@ -40,9 +74,9 @@ $user_ids = DBQuery::tbl(new Users_Query())->select([
 
 
 //count with join
-$cnt_users = DBQuery::tbl(new Users_Query())->join(
+$cnt_users = DBQuery::tbl(new UsersQuery())->join(
 		['ID', 'user_id'],
-		DBQuery::tbl(new User_Meta_Query())->where([
+		DBQuery::tbl(new UserMetaQuery())->where([
 			'meta_key' => 'user_rating',
 			'meta_value__between' => [2, 5]
 		])
@@ -51,17 +85,17 @@ $cnt_users = DBQuery::tbl(new Users_Query())->join(
 
 
 //subquery counter
-$users = DBQuery::tbl(new Users_Query('users'))->select([
+$users = DBQuery::tbl(new UsersQuery('users'))->select([
 	'display_name',
-	'posts_counter' => DBQuery::tbl(new Posts_Query('posts'))->select([
+	'posts_counter' => DBQuery::tbl(new PostsQuery('posts'))->select([
 		'count' => ['ID']
 	])->where_string("users.ID=posts.post_author")
 ])->get_results();
 
 
 //subquery condition
-$users = DBQuery::tbl(new Users_Query('users'))->where([
-	'ID__in' => DBQuery::tbl(new Posts_Query('posts'))->select(['post_author'])->where([
+$users = DBQuery::tbl(new UsersQuery('users'))->where([
+	'ID__in' => DBQuery::tbl(new PostsQuery('posts'))->select(['post_author'])->where([
 		'post_status' => 'publish',
 		'comment_count__from' => 10
 	])

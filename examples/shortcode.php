@@ -34,11 +34,11 @@
 add_shortcode('posts', 'get_posts_shortcode');
 function get_posts_shortcode($atts){
 
-	$results = DBQuery::tbl(new Posts_Query())->parse($atts)->get_results();
+	$results = DBQuery::tbl(new PostsQuery())->parse($atts)->get_results();
 
 	$content = '';
 	foreach($results as $result){
-		$content .= 'Generate content by result data';
+		$content .= 'Generate a content by the result data';
 	}
 
 	return $results;

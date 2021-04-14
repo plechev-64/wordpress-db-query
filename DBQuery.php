@@ -3,7 +3,6 @@
 class DBQuery {
 
 	public $table;
-	public $found_rows = 0;
 	public $serialize	 = array();
 	public $query		 = array();
 
@@ -234,6 +233,7 @@ class DBQuery {
 	}
 
 	function where( $where ) {
+
 		foreach ( $this->table['cols'] as $col_name ) {
 			if ( isset( $where[$col_name] ) ) {
 
@@ -273,6 +273,7 @@ class DBQuery {
 				$colName = is_numeric( $data ) ? "CAST(" . $this->table['as'] . ".$col_name AS DECIMAL)" : $this->table['as'] . "." . $col_name;
 
 				$this->query['where'][] = $colName . " <= '" . esc_sql( $data ) . "'";
+
 			} else if ( isset( $where[$col_name . '__from'] ) ) {
 
 				$data = $where[$col_name . '__from'];
@@ -380,20 +381,6 @@ class DBQuery {
 		return $this;
 	}
 
-	function orderby_case($columnName, $case){
-
-		$cases = [];
-		foreach($case as $k => $v){
-			$cases[] = "WHEN $v THEN " . ($k + 1);
-		}
-
-		$this->query['orderby'] = "CASE ".$this->get_colname($columnName)." ".implode(" ", $cases);
-		$this->query['order'] = "END";
-
-		return $this;
-
-	}
-
 	function orderby( $orderby, $order = false ) {
 
 		if ( is_array( $orderby ) ) {
@@ -409,6 +396,30 @@ class DBQuery {
 
 			if ( $order )
 				$this->order( $order );
+		}
+
+		return $this;
+	}
+
+	function orderby_case($columnName, $case){
+
+		$cases = [];
+		foreach($case as $k => $v){
+			$cases[] = "WHEN $v THEN " . ($k + 1);
+		}
+
+		$this->query['orderby'] = "CASE ".$this->get_colname($columnName)." ".implode(" ", $cases);
+		$this->query['order'] = "END";
+
+		return $this;
+
+	}
+
+	function orderby_as_number($columnName, $order = false){
+		$this->query['orderby'] = $columnName.' * 1';
+
+		if($order){
+			$this->order($order);
 		}
 
 		return $this;
@@ -460,6 +471,17 @@ class DBQuery {
 		if ( $where )
 			$sql[] = "WHERE " . implode( ' ', $where );
 
+		if ( isset( $query['union'] ) ) { //support old union request
+			foreach ( $query['union'] as $unionQuery ) {
+
+				$sql[] = "UNION ALL";
+
+				$Query = new DBQuery( $unionQuery['table'] );
+
+				$sql[] = $Query->get_sql( $unionQuery );
+			}
+		}
+
 		if ( isset( $query['groupby'] ) && $query['groupby'] )
 			$sql[] = "GROUP BY " . $query['groupby'];
 
@@ -501,15 +523,16 @@ class DBQuery {
 		return $sql;
 	}
 
-	function get_data( $method = 'get_results', $use_cache = false, $return_as = false ) {
+	function get_data( $method = 'get_results', $use_cache = false, $return_as = false, $get_found_rows = false ) {
 		global $wpdb;
-
-		if ( $this->return_as )
-			$return_as = $this->return_as;
 
 		$query = $this->get_query();
 
-		if ( $use_cache || $this->cache ) {
+		if($get_found_rows){
+			$query['get_found_rows'] = true;
+		}
+
+		if ( $use_cache ) {
 			$cachekey	 = md5( json_encode( $query ) );
 			$cache		 = wp_cache_get( $cachekey );
 			if ( $cache !== false )
@@ -523,6 +546,8 @@ class DBQuery {
 		$data = $this->maybe_unserialize( $data );
 
 		$data = wp_unslash( $data );
+
+		//$this->found_rows = $wpdb->query( "SELECT FOUND_ROWS() AS count" );
 
 		if ( $use_cache )
 			wp_cache_add( $cachekey, $data );
@@ -559,13 +584,11 @@ class DBQuery {
 	}
 
 	function get_var( $cache = false ) {
-		if ( is_array( $cache ) )
-			return parent::get_var( $cache );
 		return $this->get_data( 'get_var', $cache );
 	}
 
-	function get_results( $cache = false, $return_as = false ) {
-		return $this->get_data( 'get_results', $cache, $return_as );
+	function get_results( $cache = false, $return_as = false, $get_found_rows = false ) {
+		return $this->get_data( 'get_results', $cache, $return_as, $get_found_rows );
 	}
 
 	function get_row( $cache = false ) {
