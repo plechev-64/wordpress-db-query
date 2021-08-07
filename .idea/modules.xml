@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/wordpress-db-query.iml" filepath="$PROJECT_DIR$/.idea/wordpress-db-query.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/github-db-query.iml" filepath="$PROJECT_DIR$/.idea/github-db-query.iml" />
     </modules>
   </component>
 </project>

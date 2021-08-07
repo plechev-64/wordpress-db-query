@@ -34,7 +34,7 @@
 add_shortcode('posts', 'get_posts_shortcode');
 function get_posts_shortcode($atts){
 
-	$results = DBQuery::tbl(new PostsQuery())->parse($atts)->get_results();
+	$results = (new PostsQuery())->parse($atts)->get_results();
 
 	$content = '';
 	foreach($results as $result){

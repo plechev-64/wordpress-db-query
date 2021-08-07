@@ -35,7 +35,7 @@
  **/
 
 //get col values
-$post_ids = DBQuery::tbl(new PostsQuery())->select([
+$post_ids = (new PostsQuery())->select([
 		'ID'
 	])->where([
 		'post_type' => 'post',
@@ -47,7 +47,7 @@ $post_ids = DBQuery::tbl(new PostsQuery())->select([
 
 
 //get results with cache
-$results = DBQuery::tbl(new PostsQuery())->select([
+$results = (new PostsQuery())->select([
 		'ID', 'post_content', 'post_author'
 	])->where([
 		'post_type__in' => ['post', 'page'],
@@ -59,11 +59,11 @@ $results = DBQuery::tbl(new PostsQuery())->select([
 
 
 //join
-$user_ids = DBQuery::tbl(new UsersQuery())->select([
+$user_ids = (new UsersQuery())->select([
 		'ID'
 	])->join(
 		['ID', 'post_author'],
-		DBQuery::tbl(new PostsQuery())->where([
+		(new PostsQuery())->where([
 			'post_type' => 'post',
 			'post_status' => 'publish'
 		])
@@ -74,9 +74,9 @@ $user_ids = DBQuery::tbl(new UsersQuery())->select([
 
 
 //count with join
-$cnt_users = DBQuery::tbl(new UsersQuery())->join(
+$cnt_users = (new UsersQuery())->join(
 		['ID', 'user_id'],
-		DBQuery::tbl(new UserMetaQuery())->where([
+		(new UserMetaQuery())->where([
 			'meta_key' => 'user_rating',
 			'meta_value__between' => [2, 5]
 		])
@@ -85,17 +85,17 @@ $cnt_users = DBQuery::tbl(new UsersQuery())->join(
 
 
 //subquery counter
-$users = DBQuery::tbl(new UsersQuery('users'))->select([
+$users = (new UsersQuery('users'))->select([
 	'display_name',
-	'posts_counter' => DBQuery::tbl(new PostsQuery('posts'))->select([
+	'posts_counter' => (new PostsQuery('posts'))->select([
 		'count' => ['ID']
 	])->where_string("users.ID=posts.post_author")
 ])->get_results();
 
 
 //subquery condition
-$users = DBQuery::tbl(new UsersQuery('users'))->where([
-	'ID__in' => DBQuery::tbl(new PostsQuery('posts'))->select(['post_author'])->where([
+$users = (new UsersQuery('users'))->where([
+	'ID__in' => (new PostsQuery('posts'))->select(['post_author'])->where([
 		'post_status' => 'publish',
 		'comment_count__from' => 10
 	])

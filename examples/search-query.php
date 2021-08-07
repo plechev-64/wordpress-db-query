@@ -23,7 +23,7 @@ $searchRules = [
 	},
 	'rating__from' => function ( $query, $value ) {
 		return $query->join(
-			['ID', 'post_id'], DBQuery::tbl(new PostMetaQuery())->where([
+			['ID', 'post_id'], (new PostMetaQuery())->where([
 				'meta_key' => 'rating',
 				'meta_value__from' => intval($value)
 			])
@@ -31,7 +31,7 @@ $searchRules = [
 	},
 	'username' => function ( $query, $value ) {
 		return $query->join([
-			['post_author', 'ID'], DBQuery::tbl(new UsersQuery())->where(['display_name__like' => strval($value)])
+			['post_author', 'ID'], (new UsersQuery())->where(['display_name__like' => strval($value)])
 		]);
 	},
 ];

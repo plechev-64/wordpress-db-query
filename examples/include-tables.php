@@ -62,6 +62,8 @@ class CommentsQuery extends DBQuery {
 				'comment_ID',
 				'comment_post_ID',
 				'comment_approved',
+				'comment_date',
+				'comment_author',
 				'user_id'
 			)
 		);
