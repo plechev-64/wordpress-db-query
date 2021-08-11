@@ -255,7 +255,77 @@ class DBQuery {
 		return $this;
 	}
 
+	function whereRules() {
+
+		return [
+			0         => function ( $col_name, $data ) {
+				if ( $data === 'is_null' ) {
+					$this->query['where'][] = $this->table['as'] . ".$col_name IS NULL";
+				} else if ( strpos( $data, '.' ) !== false ) {
+					$this->query['where'][] = $this->table['as'] . ".$col_name = '" . esc_sql( $data ) . "'";
+				} else {
+					$this->query['where'][] = $this->table['as'] . ".$col_name = " . ( is_object( $data ) ? "(" . $data->limit( 0 )->get_sql() . ")" : "'" . esc_sql( $data ) . "'" );
+				}
+			},
+			'in'      => function ( $col_name, $data ) {
+				$this->query['where'][] = $this->table['as'] . ".$col_name IN (" . ( is_object( $data ) ? $data->limit( 0 )->get_sql() : $this->get_string_in( esc_sql( $data ) ) ) . ")";
+			},
+			'not_in'  => function ( $col_name, $data ) {
+				$this->query['where'][] = $this->table['as'] . ".$col_name NOT IN (" . ( is_object( $data ) ? $data->limit( 0 )->get_sql() : $this->get_string_in( esc_sql( $data ) ) ) . ")";
+			},
+			'between' => function ( $col_name, $data ) {
+				$this->query['where'][] = "(" . $this->table['as'] . '.' . $col_name . " BETWEEN IFNULL(" . $data[0] . ", 0) AND '" . $data[1] . "')";
+			},
+			'like'    => function ( $col_name, $data ) {
+				$this->query['where'][] = $this->table['as'] . ".$col_name LIKE '%" . esc_sql( $data ) . "%'";
+			},
+			'to'      => function ( $col_name, $data ) {
+				$colName                = is_numeric( $data ) ? "CAST(" . $this->table['as'] . ".$col_name AS DECIMAL)" : $this->table['as'] . "." . $col_name;
+				$this->query['where'][] = $colName . " <= '" . esc_sql( $data ) . "'";
+			},
+			'from'    => function ( $col_name, $data ) {
+				$colName                = is_numeric( $data ) ? "CAST(" . $this->table['as'] . ".$col_name AS DECIMAL)" : $this->table['as'] . "." . $col_name;
+				$this->query['where'][] = $colName . " >= '" . esc_sql( $data ) . "'";
+			},
+			'is'      => function ( $col_name, $data ) {
+				$this->query['where'][] = $this->table['as'] . ".$col_name IS " . $data;
+			}
+		];
+
+	}
+
+	function newWhere( $where ) {
+
+		$rules = $this->whereRules();
+
+		foreach ( $where as $key => $val ) {
+
+			if ( $val === null || $val === false ) {
+				continue;
+			}
+
+			$keyArray = explode( '__', $key );
+
+			$colName = $keyArray[0];
+			$ruleKey = ! empty( $keyArray[1] ) ? $keyArray[1] : 0;
+
+			if ( empty( $rules[ $ruleKey ] ) ) {
+				continue;
+			}
+
+			$rule = $rules[ $ruleKey ];
+
+			$rule( $colName, $val );
+
+		}
+
+		return $this;
+
+	}
+
 	function where( $where ) {
+
+		return $this->newWhere( $where );
 
 		foreach ( $this->table['cols'] as $col_name ) {
 			if ( isset( $where[ $col_name ] ) ) {
@@ -485,16 +555,16 @@ class DBQuery {
 			$sql[] = "SELECT " . implode( ', ', $query['select'] );
 			$sql[] = "FROM " . $this->table['name'] . " AS " . $this->table['as'];
 		} else if ( $action == 'update' ) {
-			$sql[] = "UPDATE " . $this->table['name'] . " AS " . $this->table['as'] . " ";
+			$sql[] = "UPDATE " . $this->table['name'] . " AS " . $this->table['as'];
 			if ( isset( $query['set'] ) && $query['set'] ) {
 				$set = [];
 				foreach ( $query['set'] as $col_name => $v ) {
-					$set[] = $this->table['as'] . ".$col_name.='" . $v . "'";
+					$set[] = $this->table['as'] . ".$col_name='" . $v . "'";
 				}
 				$sql[] = "SET " . implode( ', ', $set );
 			}
 		} else if ( $action == 'delete' ) {
-			$sql[] = "DELETE FROM " . $this->table['name'] . " AS " . $this->table['as'];
+			$sql[] = "DELETE ".$this->table['as']." FROM " . $this->table['name'] . " AS " . $this->table['as'];
 		}
 
 		if ( isset( $query['join'] ) && $query['join'] ) {
@@ -522,53 +592,55 @@ class DBQuery {
 			$sql[] = "WHERE " . implode( ' ', $where );
 		}
 
-		if ( isset( $query['union'] ) ) { //support old union request
-			foreach ( $query['union'] as $unionQuery ) {
+		if ( $action == 'get' ) {
+			if ( isset( $query['union'] ) ) { //support old union request
+				foreach ( $query['union'] as $unionQuery ) {
 
-				$sql[] = "UNION ALL";
+					$sql[] = "UNION ALL";
 
-				$Query = new DBQuery( $unionQuery['table'] );
+					$Query = new DBQuery( $unionQuery['table'] );
 
-				$sql[] = $Query->get_sql( $unionQuery );
-			}
-		}
-
-		if ( isset( $query['groupby'] ) && $query['groupby'] ) {
-			$sql[] = "GROUP BY " . $query['groupby'];
-		}
-
-		if ( isset( $query['having'] ) && $query['having'] ) {
-			$sql[] = "HAVING " . implode( ' AND ', $query['having'] );
-		}
-
-		if ( isset( $query['orderby'] ) && $query['orderby'] ) {
-
-			if ( is_array( $query['orderby'] ) ) {
-				$orders = array();
-				foreach ( $query['orderby'] as $orderby => $order ) {
-					$orders[] = $orderby . " " . $order;
+					$sql[] = $Query->get_sql( $unionQuery );
 				}
-				$sql[] = "ORDER BY " . implode( ",", $orders );
+			}
+
+			if ( isset( $query['groupby'] ) && $query['groupby'] ) {
+				$sql[] = "GROUP BY " . $query['groupby'];
+			}
+
+			if ( isset( $query['having'] ) && $query['having'] ) {
+				$sql[] = "HAVING " . implode( ' AND ', $query['having'] );
+			}
+
+			if ( isset( $query['orderby'] ) && $query['orderby'] ) {
+
+				if ( is_array( $query['orderby'] ) ) {
+					$orders = array();
+					foreach ( $query['orderby'] as $orderby => $order ) {
+						$orders[] = $orderby . " " . $order;
+					}
+					$sql[] = "ORDER BY " . implode( ",", $orders );
+				} else {
+					$sql[] = "ORDER BY " . $query['orderby'] . " " . $query['order'];
+				}
 			} else {
-				$sql[] = "ORDER BY " . $query['orderby'] . " " . $query['order'];
-			}
-		} else {
-			$sql[] = "ORDER BY " . $this->table['as'] . "." . $this->table['cols'][0] . " " . ( isset( $query['order'] ) ? $query['order'] : 'DESC' );
-		}
-
-		if ( isset( $query['number'] ) && $query['number'] ) {
-
-			if ( $query['number'] < 0 ) {
-				$query['number'] = 0;
+				$sql[] = "ORDER BY " . $this->table['as'] . "." . $this->table['cols'][0] . " " . ( isset( $query['order'] ) ? $query['order'] : 'DESC' );
 			}
 
-			if ( isset( $query['offset'] ) && $query['offset'] ) {
-				$sql[] = "LIMIT " . $query['offset'] . "," . $query['number'];
-			} else if ( isset( $query['number'] ) && $query['number'] ) {
-				$sql[] = "LIMIT " . $query['number'];
+			if ( isset( $query['number'] ) && $query['number'] ) {
+
+				if ( $query['number'] < 0 ) {
+					$query['number'] = 0;
+				}
+
+				if ( isset( $query['offset'] ) && $query['offset'] ) {
+					$sql[] = "LIMIT " . $query['offset'] . "," . $query['number'];
+				} else if ( isset( $query['number'] ) && $query['number'] ) {
+					$sql[] = "LIMIT " . $query['number'];
+				}
+			} else if ( isset( $query['offset'] ) && $query['offset'] ) {
+				$sql[] = "OFFSET " . $query['offset'];
 			}
-		} else if ( isset( $query['offset'] ) && $query['offset'] ) {
-			$sql[] = "OFFSET " . $query['offset'];
 		}
 
 		$sql = implode( ' ', $sql );
@@ -684,7 +756,7 @@ class DBQuery {
 		return $wpdb->query( $this->get_sql( $this->query, 'update' ) );
 	}
 
-	function delete(){
+	function delete() {
 		global $wpdb;
 		return $wpdb->query( $this->get_sql( $this->query, 'delete' ) );
 	}
