@@ -43,6 +43,53 @@ class DBQuery {
 		return $this->table['as'] . '.' . $colname;
 	}
 
+	function parseRules() {
+
+		return [
+			'select'  => function ( $data ) {
+				$this->select( $data );
+			},
+			'where'   => function ( $data ) {
+				$this->where( $data );
+			},
+			'date'    => function ( $data ) {
+				foreach ( $data as $dateData ) {
+					if ( ! isset( $dateData['colname'] ) || ! $dateData['colname'] ) {
+						return;
+					}
+					if ( ! isset( $dateData['compare'] ) || ! $dateData['compare'] ) {
+						$dateData['compare'] = '=';
+					}
+					$this->date( $dateData['colname'], $dateData['compare'], $dateData['data'] );
+				}
+			},
+			'join'    => function ( $data ) {
+				foreach ( $data as $joinData ) {
+					$this->join( $joinData[0], $joinData[1] );
+				}
+			},
+			'number'  => function ( $data ) {
+				$this->number( $data );
+			},
+			'offset'  => function ( $data ) {
+				$this->offset( $data );
+			},
+			'orderby' => function ( $data ) {
+				$this->orderby( $data );
+			},
+			'order'   => function ( $data ) {
+				$this->order( $data );
+			},
+			'groupby' => function ( $data ) {
+				$this->groupby( $data );
+			},
+			'cache'   => function ( $data ) {
+				$this->set_cache( $data );
+			}
+		];
+
+	}
+
 	function parse( $args = false ) {
 
 		if ( ! $args ) {
@@ -57,52 +104,19 @@ class DBQuery {
 			}
 		}
 
+		$parseRules = $this->parseRules();
+
 		foreach ( $args as $operator => $data ) {
 
-			switch ( $operator ) {
-				case 'select':
-					$this->select( $data );
-					break;
-				case 'where':
-					$this->where( $data );
-					break;
-				case 'date':
-					foreach ( $data as $dateData ) {
-						if ( ! isset( $dateData['colname'] ) || ! $dateData['colname'] ) {
-							break;
-						}
-						if ( ! isset( $dateData['compare'] ) || ! $dateData['compare'] ) {
-							$dateData['compare'] = '=';
-						}
-						$this->date( $dateData['colname'], $dateData['compare'], $dateData['data'] );
-					}
-					break;
-				case 'join':
-					foreach ( $data as $joinData ) {
-						$this->join( $joinData[0], $joinData[1] );
-					}
-					break;
-				case 'number':
-					$this->number( $data );
-					break;
-				case 'offset':
-					$this->offset( $data );
-					break;
-				case 'orderby':
-					$this->orderby( $data );
-					break;
-				case 'order':
-					$this->order( $data );
-					break;
-				case 'groupby':
-					$this->groupby( $data );
-					break;
-				case 'cache':
-					$this->set_cache( $data );
-					break;
-				default:
-					$this->where( array( $operator => $data ) );
+			if(!isset($parseRules[$operator])){
+				$this->where( array( $operator => $data ) );
+				continue;
 			}
+
+			$rule = $parseRules[$operator];
+
+			$rule($data);
+
 		}
 
 		return $this;
@@ -279,22 +293,37 @@ class DBQuery {
 			'like'    => function ( $col_name, $data ) {
 				$this->query['where'][] = $this->table['as'] . ".$col_name LIKE '%" . esc_sql( $data ) . "%'";
 			},
-			'to'      => function ( $col_name, $data ) {
-				$colName                = is_numeric( $data ) ? "CAST(" . $this->table['as'] . ".$col_name AS DECIMAL)" : $this->table['as'] . "." . $col_name;
-				$this->query['where'][] = $colName . " <= '" . esc_sql( $data ) . "'";
-			},
-			'from'    => function ( $col_name, $data ) {
-				$colName                = is_numeric( $data ) ? "CAST(" . $this->table['as'] . ".$col_name AS DECIMAL)" : $this->table['as'] . "." . $col_name;
-				$this->query['where'][] = $colName . " >= '" . esc_sql( $data ) . "'";
-			},
 			'is'      => function ( $col_name, $data ) {
 				$this->query['where'][] = $this->table['as'] . ".$col_name IS " . $data;
+			},
+			'to'      => function ( $col_name, $data ) {
+				$this->add_operator_compare('<=', $col_name, $data);
+			},
+			'from'    => function ( $col_name, $data ) {
+				$this->add_operator_compare('>=', $col_name, $data);
+			},
+			'>'       => function ( $col_name, $data ) {
+				$this->add_operator_compare('>', $col_name, $data);
+			},
+			'>='      => function ( $col_name, $data ) {
+				$this->add_operator_compare('>=', $col_name, $data);
+			},
+			'<'       => function ( $col_name, $data ) {
+				$this->add_operator_compare('<', $col_name, $data);
+			},
+			'<='      => function ( $col_name, $data ) {
+				$this->add_operator_compare('<=', $col_name, $data);
 			}
 		];
 
 	}
 
-	function newWhere( $where ) {
+	private function add_operator_compare($operator, $col_name, $data){
+		$colName                = is_numeric( $data ) ? "CAST(" . $this->table['as'] . ".$col_name AS DECIMAL)" : $this->table['as'] . "." . $col_name;
+		$this->query['where'][] = $colName . " ".$operator." '" . esc_sql( $data ) . "'";
+	}
+
+	function where( $where ) {
 
 		$rules = $this->whereRules();
 
@@ -321,68 +350,6 @@ class DBQuery {
 
 		return $this;
 
-	}
-
-	function where( $where ) {
-
-		return $this->newWhere( $where );
-
-		foreach ( $this->table['cols'] as $col_name ) {
-			if ( isset( $where[ $col_name ] ) ) {
-
-				$data = $where[ $col_name ];
-
-				if ( $data === 'is_null' ) {
-					$this->query['where'][] = $this->table['as'] . ".$col_name IS NULL";
-				} else if ( strpos( $data, '.' ) !== false ) {
-					$this->query['where'][] = $this->table['as'] . ".$col_name = '" . esc_sql( $data ) . "'";
-				} else {
-					$this->query['where'][] = $this->table['as'] . ".$col_name = " . ( is_object( $data ) ? "(" . $data->limit( 0 )->get_sql() . ")" : "'" . esc_sql( $data ) . "'" );
-				}
-			} else if ( isset( $where[ $col_name . '__in' ] ) && $where[ $col_name . '__in' ] ) {
-
-				$data = $where[ $col_name . '__in' ];
-
-				$this->query['where'][] = $this->table['as'] . ".$col_name IN (" . ( is_object( $data ) ? $data->limit( 0 )->get_sql() : $this->get_string_in( esc_sql( $data ) ) ) . ")";
-			} else if ( isset( $where[ $col_name . '__not_in' ] ) && $where[ $col_name . '__not_in' ] ) {
-
-				$data = $where[ $col_name . '__not_in' ];
-
-				$this->query['where'][] = $this->table['as'] . ".$col_name NOT IN (" . ( is_object( $data ) ? $data->limit( 0 )->get_sql() : $this->get_string_in( esc_sql( $data ) ) ) . ")";
-			} else if ( isset( $where[ $col_name . '__between' ] ) && $where[ $col_name . '__between' ] ) {
-
-				$data = esc_sql( $where[ $col_name . '__between' ] );
-
-				$this->query['where'][] = "(" . $this->table['as'] . '.' . $col_name . " BETWEEN IFNULL(" . $data[0] . ", 0) AND '" . $data[1] . "')";
-			} else if ( isset( $where[ $col_name . '__like' ] ) && $where[ $col_name . '__like' ] ) {
-
-				$data = $where[ $col_name . '__like' ];
-
-				$this->query['where'][] = $this->table['as'] . ".$col_name LIKE '%" . esc_sql( $data ) . "%'";
-			} else if ( isset( $where[ $col_name . '__to' ] ) ) {
-
-				$data = $where[ $col_name . '__to' ];
-
-				$colName = is_numeric( $data ) ? "CAST(" . $this->table['as'] . ".$col_name AS DECIMAL)" : $this->table['as'] . "." . $col_name;
-
-				$this->query['where'][] = $colName . " <= '" . esc_sql( $data ) . "'";
-
-			} else if ( isset( $where[ $col_name . '__from' ] ) ) {
-
-				$data = $where[ $col_name . '__from' ];
-
-				$colName = is_numeric( $data ) ? "CAST(" . $this->table['as'] . ".$col_name AS DECIMAL)" : $this->table['as'] . "." . $col_name;
-
-				$this->query['where'][] = $colName . " >= '" . esc_sql( $data ) . "'";
-			} else if ( isset( $where[ $col_name . '__is' ] ) ) {
-
-				$data = $where[ $col_name . '__is' ];
-
-				$this->query['where'][] = $this->table['as'] . ".$col_name IS " . $data;
-			}
-		}
-
-		return $this;
 	}
 
 	function select_string( $string ) {
@@ -543,7 +510,7 @@ class DBQuery {
 
 	function get_sql( $query = false, $action = 'get' ) {
 
-		$query = $query ? $query : $this->get_query();
+		$query = $query ?: $this->get_query();
 
 		if ( ! isset( $query['select'] ) || ! $query['select'] ) {
 			$query['select'][] = $this->table['as'] . '.*';
@@ -564,7 +531,7 @@ class DBQuery {
 				$sql[] = "SET " . implode( ', ', $set );
 			}
 		} else if ( $action == 'delete' ) {
-			$sql[] = "DELETE ".$this->table['as']." FROM " . $this->table['name'] . " AS " . $this->table['as'];
+			$sql[] = "DELETE " . $this->table['as'] . " FROM " . $this->table['name'] . " AS " . $this->table['as'];
 		}
 
 		if ( isset( $query['join'] ) && $query['join'] ) {
@@ -747,17 +714,20 @@ class DBQuery {
 
 	function insert( $data ) {
 		global $wpdb;
+
 		return $wpdb->insert( $this->table['name'], $data );
 	}
 
 	function update( $set ) {
 		global $wpdb;
 		$this->query['set'] = $set;
+
 		return $wpdb->query( $this->get_sql( $this->query, 'update' ) );
 	}
 
 	function delete() {
 		global $wpdb;
+
 		return $wpdb->query( $this->get_sql( $this->query, 'delete' ) );
 	}
 
