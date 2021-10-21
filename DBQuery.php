@@ -1,10 +1,14 @@
 <?php
 
+/*
+ * version 1.0.0
+ * */
+
 class DBQuery {
 
 	public $table;
-	public $serialize = array();
-	public $query = array();
+	public $serialize = [];
+	public $query = [];
 
 	function __construct( $table ) {
 
@@ -14,21 +18,23 @@ class DBQuery {
 
 		$this->table = $table;
 
+		$this->table['flip_cols'] = array_flip( $this->table['cols'] );
+
 		$this->reset_query();
 	}
 
 	function reset_query() {
-		$this->query = array(
-			'select'  => array(),
-			'where'   => array(),
-			'join'    => array(),
+		$this->query = [
+			'select'  => [],
+			'where'   => [],
+			'join'    => [],
 			'number'  => 30,
 			'offset'  => 0,
 			'orderby' => false,
 			'order'   => 'DESC',
-			'having'  => array(),
+			'having'  => [],
 			'groupby' => false
-		);
+		];
 	}
 
 	static function tbl( $tableObject ) {
@@ -108,14 +114,14 @@ class DBQuery {
 
 		foreach ( $args as $operator => $data ) {
 
-			if(!isset($parseRules[$operator])){
-				$this->where( array( $operator => $data ) );
+			if ( ! isset( $parseRules[ $operator ] ) ) {
+				$this->where( [ $operator => $data ] );
 				continue;
 			}
 
-			$rule = $parseRules[$operator];
+			$rule = $parseRules[ $operator ];
 
-			$rule($data);
+			$rule( $data );
 
 		}
 
@@ -133,12 +139,12 @@ class DBQuery {
 
 		$query = $this->get_query();
 
-		$sql = $this->get_sql( array(
-			'select'  => array( $operator . '(' . $this->table['as'] . '.' . $field_name . ')' ),
+		$sql = $this->get_sql( [
+			'select'  => $operator == 'COUNT' ? [ $operator . '(' . $this->table['as'] . '.' . $field_name . ')' ] : [ $operator . '(CAST(' . $this->table['as'] . '.' . $field_name . ' AS DECIMAL))' ],
 			'join'    => $query['join'],
 			'where'   => $query['where'],
 			'groupby' => isset( $query['groupby'] ) ? $query['groupby'] : null
-		) );
+		] );
 
 		if ( $use_cache ) {
 			$cachekey = md5( $sql );
@@ -181,7 +187,14 @@ class DBQuery {
 					return $operator[0] . '( ' . $operator[1] . ' ' . $this->table['as'] . '.' . $col_name . ')' . ( is_string( $as_value ) ? ' AS ' . $as_value : '' );
 			}
 		} else {
-			return $operator . '(' . $this->table['as'] . '.' . $col_name . ')' . ( is_string( $as_value ) ? ' AS ' . $as_value : ' AS ' . $col_name );
+
+			if($operator == 'COUNT'){
+				$string = $operator . '(' . $this->table['as'] . '.' . $col_name . ')';
+			}else{
+				$string = $operator . '(CAST(' . $this->table['as'] . '.' . $col_name . ' AS DECIMAL))';
+			}
+
+			return $string . ( is_string( $as_value ) ? ' AS ' . $as_value : ' AS ' . $col_name );
 		}
 	}
 
@@ -190,7 +203,7 @@ class DBQuery {
 		foreach ( $select as $as_value => $data ) {
 			if ( in_array( $data, $this->table['cols'] ) ) {
 				$this->query['select'][] = 'DISTINCT ' . $this->table['as'] . '.' . $data . ( is_string( $as_value ) ? ' AS ' . $as_value : '' );
-			} else if ( in_array( $as_value, array( 'count' ) ) ) {
+			} else if ( in_array( $as_value, [ 'count' ] ) ) {
 				$this->set_operator_query( strtoupper( $as_value ) . ' DISTINCT', $data );
 			}
 		}
@@ -206,14 +219,16 @@ class DBQuery {
 
 		if ( ! is_array( $select ) ) {
 			if ( $select ) {
-				$this->query['select'][] = $this->table['as'] . '.*';
+				foreach ( $this->table['cols'] as $col_name ) {
+					$this->query['select'][] = $this->table['as'] . '.' . $col_name;
+				}
 			}
 		} else {
 
 			foreach ( $select as $as_value => $data ) {
 				if ( in_array( $data, $this->table['cols'] ) ) {
 					$this->query['select'][] = $this->table['as'] . '.' . $data . ( is_string( $as_value ) ? ' AS ' . $as_value : '' );
-				} else if ( in_array( $as_value, array( 'count', 'max', 'min', 'sum' ) ) ) {
+				} else if ( in_array( $as_value, [ 'count', 'max', 'min', 'sum' ] ) ) {
 					$this->set_operator_query( strtoupper( $as_value ), $data );
 				} else if ( is_object( $data ) ) {
 					$this->query['select'][] = '(' . $data->limit( 0 )->get_sql() . ') AS ' . $as_value;
@@ -241,11 +256,11 @@ class DBQuery {
 			}
 
 			if ( isset( $props['last'] ) ) {
-				$this->date( $col_name, '>=', array( 'interval' => $props['last'] ) );
+				$this->date( $col_name, '>=', [ 'interval' => $props['last'] ] );
 			}
 
 			if ( isset( $props['older'] ) ) {
-				$this->date( $col_name, '<', array( 'interval' => $props['older'] ) );
+				$this->date( $col_name, '<', [ 'interval' => $props['older'] ] );
 			}
 		} else if ( $compare == 'BETWEEN' ) {
 
@@ -297,30 +312,30 @@ class DBQuery {
 				$this->query['where'][] = $this->table['as'] . ".$col_name IS " . $data;
 			},
 			'to'      => function ( $col_name, $data ) {
-				$this->add_operator_compare('<=', $col_name, $data);
+				$this->add_operator_compare( '<=', $col_name, $data );
 			},
 			'from'    => function ( $col_name, $data ) {
-				$this->add_operator_compare('>=', $col_name, $data);
+				$this->add_operator_compare( '>=', $col_name, $data );
 			},
 			'>'       => function ( $col_name, $data ) {
-				$this->add_operator_compare('>', $col_name, $data);
+				$this->add_operator_compare( '>', $col_name, $data );
 			},
 			'>='      => function ( $col_name, $data ) {
-				$this->add_operator_compare('>=', $col_name, $data);
+				$this->add_operator_compare( '>=', $col_name, $data );
 			},
 			'<'       => function ( $col_name, $data ) {
-				$this->add_operator_compare('<', $col_name, $data);
+				$this->add_operator_compare( '<', $col_name, $data );
 			},
 			'<='      => function ( $col_name, $data ) {
-				$this->add_operator_compare('<=', $col_name, $data);
+				$this->add_operator_compare( '<=', $col_name, $data );
 			}
 		];
 
 	}
 
-	private function add_operator_compare($operator, $col_name, $data){
+	private function add_operator_compare( $operator, $col_name, $data ) {
 		$colName                = is_numeric( $data ) ? "CAST(" . $this->table['as'] . ".$col_name AS DECIMAL)" : $this->table['as'] . "." . $col_name;
-		$this->query['where'][] = $colName . " ".$operator." '" . esc_sql( $data ) . "'";
+		$this->query['where'][] = $colName . " " . $operator . " '" . esc_sql( $data ) . "'";
 	}
 
 	function where( $where ) {
@@ -336,6 +351,11 @@ class DBQuery {
 			$keyArray = explode( '__', $key );
 
 			$colName = $keyArray[0];
+
+			if ( ! isset( $this->table['flip_cols'][ $colName ] ) ) {
+				continue;
+			}
+
 			$ruleKey = ! empty( $keyArray[1] ) ? $keyArray[1] : 0;
 
 			if ( empty( $rules[ $ruleKey ] ) ) {
@@ -382,7 +402,7 @@ class DBQuery {
 
 		$vars = array_map( 'trim', $vars );
 
-		$array = array();
+		$array = [];
 		foreach ( $vars as $var ) {
 
 			if ( is_numeric( $var ) ) {
@@ -474,7 +494,7 @@ class DBQuery {
 		return $this;
 	}
 
-	function orderby_case( $columnName, $case ) {
+	function orderby_case( $columnName, $case, $default = '' ) {
 
 		$cases = [];
 		foreach ( $case as $k => $v ) {
@@ -482,7 +502,12 @@ class DBQuery {
 		}
 
 		$this->query['orderby'] = "CASE " . $this->get_colname( $columnName ) . " " . implode( " ", $cases );
-		$this->query['order']   = "END";
+
+		if ( ! empty( $default ) ) {
+			$this->query['orderby'] .= " ELSE $default ";
+		}
+
+		$this->query['order'] = "END";
 
 		return $this;
 
@@ -513,7 +538,9 @@ class DBQuery {
 		$query = $query ?: $this->get_query();
 
 		if ( ! isset( $query['select'] ) || ! $query['select'] ) {
-			$query['select'][] = $this->table['as'] . '.*';
+			foreach ( $this->table['cols'] as $col_name ) {
+				$query['select'][] = $this->table['as'] . '.' . $col_name;
+			}
 		}
 
 		//$get_found_rows = isset($query['get_found_rows']) && $query['get_found_rows']? 'SQL_CALC_FOUND_ROWS ': '';
@@ -538,7 +565,7 @@ class DBQuery {
 			$sql[] = implode( ' ', $query['join'] );
 		}
 
-		$where = array();
+		$where = [];
 
 		if ( isset( $query['where'] ) && $query['where'] ) {
 			$where[] = implode( ' AND ', $query['where'] );
@@ -582,7 +609,7 @@ class DBQuery {
 			if ( isset( $query['orderby'] ) && $query['orderby'] ) {
 
 				if ( is_array( $query['orderby'] ) ) {
-					$orders = array();
+					$orders = [];
 					foreach ( $query['orderby'] as $orderby => $order ) {
 						$orders[] = $orderby . " " . $order;
 					}
