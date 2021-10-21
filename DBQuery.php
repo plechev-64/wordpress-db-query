@@ -140,7 +140,7 @@ class DBQuery {
 		$query = $this->get_query();
 
 		$sql = $this->get_sql( [
-			'select'  => $operator == 'COUNT' ? [ $operator . '(' . $this->table['as'] . '.' . $field_name . ')' ] : [ $operator . '(CAST(' . $this->table['as'] . '.' . $field_name . ' AS DECIMAL))' ],
+			'select'  => $operator == 'COUNT' ? [ $operator . '(' . $this->table['as'] . '.' . $field_name . ')' ] : [ $operator . '(CAST(' . $this->table['as'] . '.' . $field_name . ' AS DECIMAL(18,0)))' ],
 			'join'    => $query['join'],
 			'where'   => $query['where'],
 			'groupby' => isset( $query['groupby'] ) ? $query['groupby'] : null
@@ -191,7 +191,7 @@ class DBQuery {
 			if($operator == 'COUNT'){
 				$string = $operator . '(' . $this->table['as'] . '.' . $col_name . ')';
 			}else{
-				$string = $operator . '(CAST(' . $this->table['as'] . '.' . $col_name . ' AS DECIMAL))';
+				$string = $operator . '(CAST(' . $this->table['as'] . '.' . $col_name . ' AS DECIMAL(18,0)))';
 			}
 
 			return $string . ( is_string( $as_value ) ? ' AS ' . $as_value : ' AS ' . $col_name );
